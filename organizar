@@ -45,8 +45,7 @@ def organizar():
         desc="Organizando",
         unit="arq",
         ncols=80,
-        bar_format="{l_bar}{bar} | {n_fmt}/{total_fmt} | {percentage:3.>
-    )
+        bar_format="{l_bar}{bar} | {n_fmt}/{total_fmt} | {percentage:3.0f}")
 
     for arquivo in barra:
         caminho = os.path.join(PASTA_BASE, arquivo)
