@@ -1,1 +1,157 @@
-404: Not Found
+#!/usr/bin/env python3
+
+import os
+import sys
+import shutil
+import time
+import logging
+from tqdm import tqdm
+
+# ===== CONFIG =====
+PASTA_BASE = "/storage/emulated/0/Download"
+LOG_FILE = os.path.expanduser("~/organizador.log")
+
+TIPOS = {
+    "Imagens": [".jpg", ".jpeg", ".png", ".gif"],
+    "Videos": [".mp4", ".mkv", ".avi"],
+    "Musicas": [".mp3", ".wav"],
+    "Documentos": [".pdf", ".docx", ".txt"],
+    "Apks": [".apk"],
+    "Planilhas": [".xlsx"]
+}
+
+# ===== LOG =====
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s - %(message)s"
+)
+
+def log(msg):
+    print(msg)
+    logging.info(msg)
+
+# ===== ORGANIZAR =====
+def organizar():
+    arquivos = [f for f in os.listdir(PASTA_BASE)
+                if os.path.isfile(os.path.join(PASTA_BASE, f))]
+
+    if not arquivos:
+        log("Nenhum arquivo para organizar.")
+        return
+
+    barra = tqdm(
+        arquivos,
+        desc="Organizando",
+        unit="arq",
+        ncols=80,
+        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} | {percentage:3.0f}%")
+
+    for arquivo in barra:
+        caminho = os.path.join(PASTA_BASE, arquivo)
+        nome, ext = os.path.splitext(arquivo)
+
+        try:
+            for pasta, extensoes in TIPOS.items():
+                if ext.lower() in extensoes:
+                    destino = os.path.join(PASTA_BASE, pasta)
+                    os.makedirs(destino, exist_ok=True)
+
+                    shutil.move(caminho, os.path.join(destino, arquivo))
+                    break
+        except Exception as e:
+            log(f"Erro ao mover {arquivo}: {e}")
+# ===== MOVER PASTA =====
+def mover_pasta(origem, destino):
+    if not os.path.exists(origem):
+        log(f"Erro: {origem} não existe.")
+        return
+
+    os.makedirs(destino, exist_ok=True)
+
+    nome = os.path.basename(origem)
+    destino_final = os.path.join(destino, nome)
+
+    contador = 1
+    while os.path.exists(destino_final):
+        destino_final = os.path.join(destino, f"{nome}_{contador}")
+        contador += 1
+
+    shutil.move(origem, destino_final)
+    log(f"Pasta movida: {destino_final}")
+
+# ===== AUTO LOOP =====
+def modo_auto(intervalo=60):
+    log(f"Modo automático iniciado ({intervalo}s)")
+    while True:
+        try:
+            organizar()
+        except Exception as e:
+            log(f"Erro no loop: {e}")
+        time.sleep(intervalo)
+
+# ===== WATCH (tempo real) =====
+def modo_watch():
+    try:
+        from watchdog.observers import Observer
+        from watchdog.events import FileSystemEventHandler
+    except ImportError:
+        print("Instale com: pip install watchdog")
+        return
+
+    class Monitor(FileSystemEventHandler):
+        def on_created(self, event):
+            if not event.is_directory:
+                log(f"Novo arquivo: {event.src_path}")
+                organizar()
+
+    observer = Observer()
+    observer.schedule(Monitor(), PASTA_BASE, recursive=False)
+    observer.start()
+
+    log("Monitorando arquivos...")
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+
+    observer.join()
+ # ===== HELP =====
+def ajuda():
+    print("""
+Uso:
+
+organizar
+    Organiza arquivos automaticamente
+
+organizar <origem> <destino>
+    Move uma pasta
+
+organizar --auto
+    Executa continuamente
+
+organizar --watch
+    Monitora novos arquivos em tempo real
+""")
+
+# ===== MAIN =====
+if __name__ == "__main__":
+    if len(sys.argv) == 3:
+        base = PASTA_BASE
+        origem = os.path.join(base, sys.argv[1])
+        destino = os.path.join(base, sys.argv[2])
+        mover_pasta(origem, destino)
+
+    elif "--auto" in sys.argv:
+        modo_auto(60)
+
+    elif "--watch" in sys.argv:
+        modo_watch()
+
+    elif "--help" in sys.argv:
+        ajuda()
+
+    else:
+        organizar()
